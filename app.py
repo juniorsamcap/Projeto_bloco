@@ -1,88 +1,135 @@
 import os
-import streamlit as st
 import pandas as pd
-import numpy as np
+import streamlit as st
 
-# Configuração da página
+# 1. Configuração da Página
 st.set_page_config(
-    page_title="Dashboard ODS 13 - Clima",
-    page_icon="🌍",
-    layout="wide"
+    page_title="Dashboard ODS 13 - Clima", page_icon="🌍", layout="wide"
 )
 
-# Título Principal
-st.title("🌍 Dashboard ODS 13 - Monitoramento Climático")
-st.markdown("Acompanhe os indicadores meteorológicos e notícias sobre o meio ambiente.")
 
-# --- CARREGAR DADOS METEOROLÓGICOS (Simulados) ---
+# ==========================================
+# 2. IMPLEMENTAÇÃO DE CACHE (@st.cache_data)
+# ==========================================
+# O decorator @st.cache_data garante que os dados só sejam lidos do disco 1 vez,
+# economizando processamento a cada clique do usuário.
 @st.cache_data
-def carregar_dados_clima():
-    datas = pd.date_range(start="2024-01-01", end="2024-06-30", freq="D")
-    np.random.seed(42)
-    dados = []
-    cidades = ["São Paulo", "Rio de Janeiro", "Curitiba"]
-    for cidade in cidades:
-        temp_base = 22 if cidade == "São Paulo" else (26 if cidade == "Rio de Janeiro" else 18)
-        temperaturas = temp_base + np.random.normal(0, 3, len(datas))
-        umidades = 70 + np.random.normal(0, 10, len(datas))
-        for d, t, u in zip(datas, temperaturas, umidades):
-            dados.append({
-                "Data": d.date(),
-                "Cidade": cidade,
-                "Temperatura (°C)": round(t, 1),
-                "Umidade (%)": round(min(max(u, 30), 100), 1)
-            })
+def carregar_dados_climaticos():
+    # Simulação de base de dados climáticos (ODS 13)
+    dados = {
+        "Data": pd.date_range(start="2024-01-01", periods=10, freq="D"),
+        "Cidade": ["São Paulo"] * 5 + ["Rio de Janeiro"] * 5,
+        "Temperatura": [25.4, 26.1, 24.8, 27.0, 25.9, 31.2, 30.5, 32.0, 29.8, 31.0],
+        "Umidade": [78, 72, 80, 68, 75, 60, 65, 58, 62, 64],
+    }
     return pd.DataFrame(dados)
 
-df_clima = carregar_dados_clima()
 
-# --- CARREGAR DADOS EXTRAÍDOS DA WEB (BeautifulSoup) ---
 @st.cache_data
 def carregar_noticias():
-    caminho = os.path.join("data", "noticias.csv")
-    if os.path.exists(caminho):
-        return pd.read_csv(caminho)
+    caminho_csv = os.path.join("data", "noticias.csv")
+    if os.path.exists(caminho_csv):
+        return pd.read_csv(caminho_csv)
     return pd.DataFrame()
 
+
+# Carregamento otimizado usando o cache
+df_clima = carregar_dados_climaticos()
 df_noticias = carregar_noticias()
 
-# --- CRIAÇÃO DE ABAS NA INTERFACE ---
-aba1, aba2 = st.tabs(["📊 Indicadores Climáticos", "📰 Notícias & Raspagem Web"])
+# ===============================================
+# 3. IMPLEMENTAÇÃO DE ESTADO DE SESSÃO (st.session_state)
+# ===============================================
+# O session_state mantém valores na memória enquanto o usuário navega na aplicação.
+if "contador_interacoes" not in st.session_state:
+    st.session_state.contador_interacoes = 0
 
-# ================= ABA 1: CLIMA =================
+
+def registrar_interacao():
+    st.session_state.contador_interacoes += 1
+
+
+# ==========================================
+# 4. INTERFACE DO USUÁRIO & BARRA LATERAL
+# ==========================================
+st.title("🌍 Dashboard ODS 13 - Monitoramento Climático")
+st.markdown(
+    "Acompanhe os indicadores meteorológicos e notícias sobre o meio ambiente."
+)
+
+# Filtros na Barra Lateral
+st.sidebar.header("🔍 Filtros de Visualização")
+
+cidades_disponiveis = df_clima["Cidade"].unique()
+cidade_selecionada = st.sidebar.selectbox(
+    "Selecione a Cidade:",
+    cidades_disponiveis,
+    on_change=registrar_interacao,  # Atualiza o estado da sessão ao mudar de cidade
+)
+
+indicador_selecionado = st.sidebar.radio(
+    "Selecione o Indicador:",
+    ["Temperatura (°C)", "Umidade (%)"],
+    on_change=registrar_interacao,  # Atualiza o estado da sessão ao mudar o rádio
+)
+
+# Exibe o contador mantido pelo Session State na barra lateral
+st.sidebar.markdown("---")
+st.sidebar.metric(
+    label="⚡ Interações nesta Sessão",
+    value=st.session_state.contador_interacoes,
+)
+
+# ==========================================
+# 5. ESTRUTURA DE ABAS
+# ==========================================
+aba1, aba2 = st.tabs(
+    ["📊 Indicadores Climáticos", "📰 Notícias & Raspagem Web"]
+)
+
+# ABA 1: INDICADORES CLIMÁTICOS
 with aba1:
-    st.sidebar.header("🔍 Filtros de Visualização")
-    cidade_selecionada = st.sidebar.selectbox("Selecione a Cidade:", options=df_clima["Cidade"].unique())
-    indicador_selecionado = st.sidebar.radio("Selecione o Indicador:", options=["Temperatura (°C)", "Umidade (%)"])
+    st.subheader(f"Dados Meteorológicos - {cidade_selecionada}")
 
+    # Filtragem dos dados conforme seleção
     df_filtrado = df_clima[df_clima["Cidade"] == cidade_selecionada]
 
-    st.subheader(f"Análise de {indicador_selecionado} - {cidade_selecionada}")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric(f"Média", f"{df_filtrado[indicador_selecionado].mean():.1f}")
-    col2.metric(f"Máxima", f"{df_filtrado[indicador_selecionado].max():.1f}")
-    col3.metric(f"Mínima", f"{df_filtrado[indicador_selecionado].min():.1f}")
+    # Cartões com Métricas
+    col1, col2 = st.columns(2)
+    temp_media = df_filtrado["Temperatura"].mean()
+    umid_media = df_filtrado["Umidade"].mean()
 
-    st.divider()
-    st.line_chart(data=df_filtrado, x="Data", y=indicador_selecionado, use_container_width=True)
+    col1.metric("Temperatura Média", f"{temp_media:.1f} °C")
+    col2.metric("Umidade Média", f"{umid_media:.1f} %")
 
-# ================= ABA 2: NOTÍCIAS RASPADAS =================
+    # Gráfico simples baseado no filtro
+    if indicador_selecionado == "Temperatura (°C)":
+        st.line_chart(df_filtrado.set_index("Data")["Temperatura"])
+    else:
+        st.line_chart(df_filtrado.set_index("Data")["Umidade"])
+
+# ABA 2: NOTÍCIAS RASPADAS
 with aba2:
     st.subheader("📰 Conteúdo Extraído da Web (BeautifulSoup)")
-    st.write("Dados raspados automaticamente e armazenados em `data/noticias.csv`.")
+    st.caption("Dados raspados automaticamente e armazenados em `data/noticias.csv`.")
 
     if not df_noticias.empty:
-        # Estatísticas Básicas das Notícias
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total de Notícias Coletadas", len(df_noticias))
-        m2.metric("Média de Palavras por Título", f"{df_noticias['Qtd_Palavras'].mean():.1f}")
-        m3.metric("Maior Título (Caracteres)", df_noticias["Tamanho_Titulo"].max())
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total de Notícias Coletadas", len(df_noticias))
+        col2.metric(
+            "Média de Palavras por Título",
+            f"{df_noticias['Qtd_Palavras'].mean():.1f}",
+        )
+        col3.metric(
+            "Maior Título (Caracteres)",
+            df_noticias["Tamanho_Titulo"].max(),
+        )
 
-        st.divider()
-
-        # Tabela com as Notícias
-        st.write("### Tabela de Headlines")
-        st.dataframe(df_noticias[["Titulo", "Qtd_Palavras"]], use_container_width=True)
+        st.markdown("### Tabela de Headlines")
+        st.dataframe(
+            df_noticias[["Titulo", "Qtd_Palavras"]], use_container_width=True
+        )
     else:
-        st.warning("Nenhum dado encontrado. Execute o arquivo 'coleta_dados.py' no terminal para gerar o CSV.")
+        st.warning(
+            "Nenhum dado encontrado. Execute o arquivo 'coleta_dados.py' no terminal para gerar o CSV."
+        )
