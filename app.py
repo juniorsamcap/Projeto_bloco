@@ -1,50 +1,88 @@
+import os
+import streamlit as st
 import pandas as pd
-import streamlit as st 
+import numpy as np
 
-# Título do Projeto
+# Configuração da página
+st.set_page_config(
+    page_title="Dashboard ODS 13 - Clima",
+    page_icon="🌍",
+    layout="wide"
+)
+
+# Título Principal
 st.title("🌍 Dashboard ODS 13 - Monitoramento Climático")
+st.markdown("Acompanhe os indicadores meteorológicos e notícias sobre o meio ambiente.")
 
-#Descrição do problema de negócio
-st.header("📌 Sobre o Projeto")
-st.divider()
-st.subheader("Problema de Negócio")
-st.write(
-    "A falta de centralização e de visualização simples de dados meteorológicos "
-    "dificulta o acompanhamento de variações de temperatura e umidade. "
-    "Isso prejudica a tomada de decisão de ONGs, gestores locais e voluntários."
-    )
-st.divider()
-st.subheader("Objetivo do Projeto")
-st.write(
-    "• Democratizar o acesso a informações climáticas regionais.\n"
-    "• Facilitar a análise de dados meteorológicos através de um painel simples e interativo.\n"
-    "• Apoiar ações socioambientais alinhadas ao ODS 13 (Ação Contra a Mudança Global do Clima)."
-)  
+# --- CARREGAR DADOS METEOROLÓGICOS (Simulados) ---
+@st.cache_data
+def carregar_dados_clima():
+    datas = pd.date_range(start="2024-01-01", end="2024-06-30", freq="D")
+    np.random.seed(42)
+    dados = []
+    cidades = ["São Paulo", "Rio de Janeiro", "Curitiba"]
+    for cidade in cidades:
+        temp_base = 22 if cidade == "São Paulo" else (26 if cidade == "Rio de Janeiro" else 18)
+        temperaturas = temp_base + np.random.normal(0, 3, len(datas))
+        umidades = 70 + np.random.normal(0, 10, len(datas))
+        for d, t, u in zip(datas, temperaturas, umidades):
+            dados.append({
+                "Data": d.date(),
+                "Cidade": cidade,
+                "Temperatura (°C)": round(t, 1),
+                "Umidade (%)": round(min(max(u, 30), 100), 1)
+            })
+    return pd.DataFrame(dados)
 
-# Links úteis
+df_clima = carregar_dados_clima()
 
-st.header("🔗 Links Úteis e Fontes de Inspiração")
+# --- CARREGAR DADOS EXTRAÍDOS DA WEB (BeautifulSoup) ---
+@st.cache_data
+def carregar_noticias():
+    caminho = os.path.join("data", "noticias.csv")
+    if os.path.exists(caminho):
+        return pd.read_csv(caminho)
+    return pd.DataFrame()
 
-st.markdown("- [Conecta Brasil](https://conectabrasil.org/home) - Plataforma de engajamento e apoio a causas sociais.")
-st.markdown("- [Observatório do 3º Setor](https://observatorio3setor.org.br/carrossel/lista-conheca-projetos-sociais-de-15-causas-diferentes/) - Divulgação de projetos socioambientais.")
-st.markdown("- [ODS 13 - Nações Unidas](https://brasil.un.org/pt-br/sdgs/13) - Detalhes sobre a meta global contra mudanças climáticas.")      
+df_noticias = carregar_noticias()
 
-# 4. Tabela demo com dados fictícios somente para demonstração
+# --- CRIAÇÃO DE ABAS NA INTERFACE ---
+aba1, aba2 = st.tabs(["📊 Indicadores Climáticos", "📰 Notícias & Raspagem Web"])
 
-st.header("📊 Amostra dos Dados do Projeto")
-st.write("Abaixo está uma amostra simplificada dos dados meteorológicos que serão utilizados e analisados ao longo do projeto:")
+# ================= ABA 1: CLIMA =================
+with aba1:
+    st.sidebar.header("🔍 Filtros de Visualização")
+    cidade_selecionada = st.sidebar.selectbox("Selecione a Cidade:", options=df_clima["Cidade"].unique())
+    indicador_selecionado = st.sidebar.radio("Selecione o Indicador:", options=["Temperatura (°C)", "Umidade (%)"])
 
-#Criando a tabela em forma de dicionário do python
-dados_exemplo = {
-    "Data": ["2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19"],
-    "Cidade": ["São Paulo", "São Paulo", "São Paulo", "São Paulo", "São Paulo"],
-    "Temperatura (°C)": [24.5, 26.0, 28.2, 23.0, 25.5],
-    "Umidade (%)": [65, 60, 55, 75, 70],
-    "Precipitação (mm)": [0.0, 0.0, 2.5, 12.0, 0.0]
-}
+    df_filtrado = df_clima[df_clima["Cidade"] == cidade_selecionada]
 
-#criando o dataframe com o dicionário
-df= pd.DataFrame(dados_exemplo)
+    st.subheader(f"Análise de {indicador_selecionado} - {cidade_selecionada}")
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric(f"Média", f"{df_filtrado[indicador_selecionado].mean():.1f}")
+    col2.metric(f"Máxima", f"{df_filtrado[indicador_selecionado].max():.1f}")
+    col3.metric(f"Mínima", f"{df_filtrado[indicador_selecionado].min():.1f}")
 
-#exibindo a tabela no Stremlit
-st.dataframe(df)
+    st.divider()
+    st.line_chart(data=df_filtrado, x="Data", y=indicador_selecionado, use_container_width=True)
+
+# ================= ABA 2: NOTÍCIAS RASPADAS =================
+with aba2:
+    st.subheader("📰 Conteúdo Extraído da Web (BeautifulSoup)")
+    st.write("Dados raspados automaticamente e armazenados em `data/noticias.csv`.")
+
+    if not df_noticias.empty:
+        # Estatísticas Básicas das Notícias
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total de Notícias Coletadas", len(df_noticias))
+        m2.metric("Média de Palavras por Título", f"{df_noticias['Qtd_Palavras'].mean():.1f}")
+        m3.metric("Maior Título (Caracteres)", df_noticias["Tamanho_Titulo"].max())
+
+        st.divider()
+
+        # Tabela com as Notícias
+        st.write("### Tabela de Headlines")
+        st.dataframe(df_noticias[["Titulo", "Qtd_Palavras"]], use_container_width=True)
+    else:
+        st.warning("Nenhum dado encontrado. Execute o arquivo 'coleta_dados.py' no terminal para gerar o CSV.")
