@@ -1,14 +1,16 @@
-# Data Summary Report (Esboço Inicial)
+# Data Summary Report - ODS 13
 
-## 1. Fontes de Dados Mapeadas
+## Fontes de Dados
+1. **Notícias Climáticas:** Extraídas dinamicamente do portal Agência Brasil (Meio Ambiente) via Selenium.
+2. **Indicadores Climáticos:** Dados estruturados de temperatura e umidade regional.
 
-| Fonte | Tipo de Dado | Método de Coleta | Objetivo de Uso |
-| :--- | :--- | :--- | :--- |
-| **Open-Meteo API** | Meteorológico (Histórico e Previsão) | API REST (JSON via Python `requests`) | Obter séries temporais de temperatura, umidade e precipitação por coordenadas geográficas. |
-| **Dados Amostrais (CSV Local)** | Histórico Metrológico Local | Arquivo `.csv` tabular | Servir de *fallback* para simulações e renderização rápida na fase Demo da aplicação. |
+## Estrutura do Conjunto de Dados (`data/noticias.csv`)
+- **Titulo:** Manchete da notícia coletada (string).
+- **Tamanho_Titulo:** Quantidade total de caracteres (integer).
+- **Qtd_Palavras:** Total de palavras presentes no título (integer).
+- **Fonte:** Origem do dado (string).
 
-## 2. Variáveis Principais
-* `datetime`: Data e hora da medição.
-* `temperature_2m`: Temperatura do ar a 2 metros de altura (°C).
-* `relative_humidity_2m`: Umidade relativa do ar (%).
-* `precipitation`: Precipitação acumulada (mm).
+## Potencial de Aplicação com LLM (Próxima Etapa)
+- **Análise de Sentimentos:** Classificação de notícias em Alerta, Neutro ou Positivo.
+- **Resumos Automáticos:** Síntese em linguagem natural dos principais fatos ambientais do dia.
+- **Sistemas de Q&A (RAG):** Assistente virtual para responder dúvidas com base no histórico armazenado.
