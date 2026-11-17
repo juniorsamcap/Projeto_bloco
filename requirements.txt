@@ -64,6 +64,7 @@ rich==15.0.0
 rpds-py==2026.6.3
 safetensors==0.8.0
 selenium==4.52.0
+sentencepiece==0.2.3
 setuptools==84.2.1
 shellingham==1.5.4
 six==1.17.0
@@ -73,6 +74,7 @@ soupsieve==2.9.2
 starlette==1.6.0
 streamlit==1.64.0
 sympy==1.14.0
+tiktoken==0.14.0
 tokenizers==0.23.3
 toml==0.10.2
 torch==2.15.0
