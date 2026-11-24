@@ -6,12 +6,15 @@ carrega o modelo da HuggingFace na máquina local e faz a análise de sentimento
 A API (api.py) apenas chama as funções daqui.
 """
 
+import os
 import time
 from transformers import pipeline
 
 # Modelo escolhido: XLM-RoBERTa multilíngue (treinado também em português), roda só na CPU.
 # Ele foi o que mais acertou nas manchetes reais do projeto (ver avaliar_modelos.py e docs/escolha_modelo.md)
-NOME_MODELO = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
+# A variável de ambiente MODELO_SENTIMENTO permite trocar o modelo sem mexer no código.
+# Usei isso para testar o erro 503 (modelo indisponível), passando um nome de modelo que não existe.
+NOME_MODELO = os.getenv("MODELO_SENTIMENTO", "cardiffnlp/twitter-xlm-roberta-base-sentiment")
 
 # O modelo responde em inglês; aqui traduzo para as categorias usadas no projeto
 MAPA_SENTIMENTOS = {
