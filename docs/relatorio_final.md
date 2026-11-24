@@ -58,6 +58,8 @@ Na primeira versão, a tarefa era uma instrução aberta ("faça até 3 tópicos
 - coloquei a **tarefa depois dos dados**, para o formato pedido ser a última coisa que o modelo lê;
 - reduzi o limite de resposta de **300 para 220 tokens**, para diminuir o tempo na CPU.
 
+Depois do ajuste, o resumo do foco geral passou a citar a temperatura máxima e a chuva de cada cidade e as notícias com o sentimento, e o tempo caiu para cerca de 76 s.
+
 ### Outras decisões
 - **Dados resumidos em vez de tabelas inteiras:** o modelo é pequeno, então mandar médias por cidade deixa o prompt curto e evita confusão.
 - **Sentimento junto de cada notícia:** o resultado de um modelo vira entrada do outro, e o resumo consegue destacar o que é risco.
@@ -74,11 +76,11 @@ Na primeira versão, a tarefa era uma instrução aberta ("faça até 3 tópicos
 
 ## 6. Testes e Evidências
 - **Erros da API:** `testar_erros.py` rodado com o modelo carregado e sem o modelo (6 de 6 com o status esperado nas duas situações). Log e prints em `docs/evidencias/`.
-- **Resumos:** gerei o primeiro resumo com o foco geral usando os dados reais do dia. O texto saiu genérico, sem usar os números, e levou cerca de 88 s. A partir desse resultado ajustei o prompt (seção 4) e gerei novamente. Cada execução, com data, hora, foco, tempo e texto gerado, está registrada em `data/historico_resumos.csv`.
+- **Resumos:** gerei o primeiro resumo com o foco geral usando os dados reais do dia. O texto saiu genérico, sem usar os números, e levou cerca de 88 s. A partir desse resultado ajustei o prompt (seção 4) e gerei de novo os três focos (geral, alertas e noticias), cada um em torno de 76 a 78 s. Cada execução, com data, hora, foco, tempo e texto gerado, está registrada em `data/historico_resumos.csv`.
 - **Compatibilidade:** `pip check` sem conflitos com as versões fixadas no `requirements.txt` (Python 3.14.6, Windows).
 
 ## 7. Insights gerados e impacto (ESG e ODS 13)
-Com os dados reais coletados para a entrega, o painel mostrou dias de calor forte concentrados no Rio de Janeiro e um pico em São Paulo no mesmo período, enquanto as notícias classificadas como Alerta tratavam de emergências ambientais. O resumo junta esses dois lados numa leitura só e sugere ações, o que antes exigia abrir vários sites e cruzar a informação manualmente.
+Com os dados reais coletados para a entrega, o painel mostrou dias de calor forte concentrados no Rio de Janeiro (20, 21 e 23/11) e um pico de 33,9 °C em São Paulo (20/11), enquanto as notícias classificadas como Alerta tratavam de incêndios florestais no Pará e da perda de conectividade de rios na Amazônia. O resumo junta esses dois lados numa leitura só, o que antes exigia abrir vários sites e cruzar a informação manualmente.
 
 - **ODS 13.1 (resiliência a riscos climáticos):** os alertas de calor e chuva ajudam a antecipar ações, como avisos à população e atenção a grupos vulneráveis.
 - **ODS 13.3 (conscientização):** o resumo em linguagem simples deixa a informação acessível para quem não é especialista.
@@ -87,13 +89,5 @@ Com os dados reais coletados para a entrega, o painel mostrou dias de calor fort
 
 ## 8. Limitações
 - O modelo de resumo é pequeno; o texto pode sair genérico, repetir pontos ou cometer pequenos erros. Por isso o dashboard mostra os números e gráficos ao lado do resumo, para o usuário conferir.
-- O tempo de resposta na CPU é alto (perto de 1 minuto ou mais), porque a máquina não tem GPU e a memória fica disputada com o navegador e o outro modelo.
-- O resumo usa só os títulos das notícias, não o texto completo das matérias.
-- Não houve comparação entre vários modelos generativos, como fiz com os classificadores no TP4; a escolha foi feita pelos critérios de tamanho, licença e suporte a português.
-- Os limites de alerta (32 °C e 50 mm) são referências que defini para o projeto.
-
-## 9. Próximos Passos
-- Coletar o texto completo das matérias para resumos mais ricos.
-- Comparar o Qwen2.5 0.5B com outros modelos generativos pequenos nas mesmas condições.
-- Incluir mais cidades e indicadores (por exemplo, qualidade do ar).
-- Agendar a coleta automática das notícias e do clima.
+- Nos testes com o prompt ajustado, o foco *geral* usou os números reais de cada cidade, mas repetiu o mesmo valor de chuva para São Paulo e Rio de Janeiro. O foco *alertas* listou corretamente os 4 dias de calor, mas marcou como Alerta duas notícias que o classificador tinha dado como Positivo, e o texto foi cortado antes das ações preventivas pelo limite de 220 tokens. O foco *noticias* foi o mais fraco: repetiu os títulos em vez de agrupar por temas e marcou todas como Alerta. Ou seja, o modelo de 0,5B segue bem o formato e copia dados, mas erra quando precisa interpretar; um modelo maior ou uma API online resolveria, com o custo de mais memória, tempo ou dependência de internet.
+- O tempo de resposta
