@@ -1,0 +1,47 @@
+Data_Hora,Foco,Modelo,Tempo_seg,Resumo
+23/11/2026 23:05:00,geral,Qwen/Qwen2.5-0.5B-Instruct,88.49,"### Tópicos sobre o clima nas cidades:
+
+1. **Impacto Ambiental das Cidades**
+   - Desafios Climáticos na Urbanização
+   - Impacto Ambiental das Cidades na Economia
+   - Desenvolvimento Sustentável das Cidades
+
+2. **Notícias e Alertas de Calor e Chuva**
+
+3. **Política Ambiental e Gestão de Energia**
+
+### Tópicos sobre as notícias:
+
+1. **Estudos de Impacto Ambiental**
+   - Estudo de Impacto Ambiental na Amazônia
+   - Monitoramento de Incêndios Florestais
+   - Desastres Florestais e Impacto Ambiental
+
+2. **Politica Ambiental e Gestão de Energia**
+
+3. **Inovação e Tecnologia na Gestão de Energia**
+
+### Comunicação Práticas Relacionadas ao ODS 13:
+
+1. **Comunicação Ambiental**
+   - Redução de Emissões de Metano
+   - Ação Contra a Mudança Global do Clima
+   - Melhoria da Qualidade do Ambiente
+
+2. **Políticas Públicas**
+   - Estratégias de Desenvolvimento Sustentável
+   - Políticas de Proteção à Natureza
+   - Política de Energia Renovável
+
+3. **Sociedade Civil"
+23/11/2026 23:15:25,geral,Qwen/Qwen2.5-0.5B-Instruct,75.97,"Clima:
+- São Paulo: Temperatura máxima de 33.9°C e chuva acumulada de 89.8 mm
+- Rio de Janeiro: Temperatura máxima de 32.5°C e chuva acumulada de 89.8 mm
+- Curitiba: Temperatura máxima de 29.0°C e chuva acumulada de 95.9 mm
+
+Notícias:
+- Alerta: Estudo alerta para diminuição da conectividade de rios na Amazônia
+- Positivo: COP31: ministro defende esforço compartilhado na proteção da Amazônia
+- Positivo: Brasil avança em políticas de alimentação e clima, diz estudo
+- Alerta: Pará tem 61 cidades em situação de emergência por incêndios florestais
+- Neutro: Ibama auxilia na reabilitação de peixes-boi na Ilha do Marajó"

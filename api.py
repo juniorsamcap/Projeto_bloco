@@ -1,6 +1,7 @@
 import os
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from datetime import datetime
+from typing import Dict, List, Literal, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
@@ -9,22 +10,29 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import clima_service
 import llm_service
+import resumo_service
 
 CAMINHO_CSV = os.path.join("data", "noticias.csv")
+CAMINHO_HISTORICO = os.path.join("data", "historico_resumos.csv")
 
 
-# Quando a API liga, o modelo de IA já é carregado uma única vez na memória
+# Quando a API liga, os modelos de IA já são carregados uma única vez na memória
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     llm_service.carregar_modelo()
+    resumo_service.carregar_modelo()
     yield
 
 
 app = FastAPI(
     title="API ODS 13 - Monitoramento Climático",
-    description="API para consulta de notícias, indicadores climáticos e análise de sentimento com IA local (ODS 13).",
-    version="2.0.0",
+    description=(
+        "API para consulta de notícias, indicadores climáticos, análise de sentimento "
+        "e resumo inteligente com IA local (ODS 13)."
+    ),
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -86,12 +94,34 @@ class RespostaStatusLLM(BaseModel):
     modelo: str
     carregado: bool
     erro: Optional[str] = None
+    modelo_resumo: str
+    resumo_carregado: bool
+    erro_resumo: Optional[str] = None
 
 
 class RespostaContexto(BaseModel):
     status: str
     total_noticias: int
     prompt_pronto_para_llm: str
+
+
+class PedidoResumo(BaseModel):
+    foco: Literal["geral", "alertas", "noticias"] = Field(
+        "geral", description="geral, alertas (só riscos) ou noticias (só as notícias)"
+    )
+    dias_clima: int = Field(14, ge=7, le=30, description="Quantos dias de clima entram no resumo (7 a 30)")
+
+
+class RespostaResumo(BaseModel):
+    foco: str
+    modelo: str
+    resumo: str
+    tempo_processamento_seg: float
+    total_noticias: int
+    noticias_por_sentimento: Dict[str, int]
+    alertas_clima: int
+    alertas_por_cidade: Dict[str, int]
+    prompt_usado: str
 
 
 class RespostaErro(BaseModel):
@@ -150,6 +180,31 @@ def ler_csv_noticias():
         return pd.read_csv(CAMINHO_CSV)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ler o arquivo de notícias: {e}")
+
+
+def classificar_noticias(df):
+    """Usa o modelo de sentimento do TP4 para marcar cada notícia como Alerta, Neutro ou Positivo."""
+    df = df.copy()
+    if llm_service.modelo_disponivel():
+        df["Sentimento"] = [llm_service.analisar_sentimento(t)["sentimento"] for t in df["Titulo"]]
+    else:
+        df["Sentimento"] = "Sem classificação"
+    return df
+
+
+def salvar_historico(resposta):
+    """Guarda cada resumo gerado em data/historico_resumos.csv (serve de registro dos testes)."""
+    linha = {
+        "Data_Hora": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "Foco": resposta["foco"],
+        "Modelo": resposta["modelo"],
+        "Tempo_seg": resposta["tempo_processamento_seg"],
+        "Resumo": resposta["resumo"],
+    }
+    arquivo_novo = not os.path.exists(CAMINHO_HISTORICO)
+    pd.DataFrame([linha]).to_csv(
+        CAMINHO_HISTORICO, mode="a", header=arquivo_novo, index=False, encoding="utf-8"
+    )
 
 
 # ---------------------------------------------------------------
@@ -221,16 +276,19 @@ def adicionar_noticia(noticia: NoticiaSchema):
 
 @app.get(
     "/llm/status",
-    summary="Status do Modelo de IA",
+    summary="Status dos Modelos de IA",
     tags=["Inteligência Artificial"],
     response_model=RespostaStatusLLM,
 )
 def status_modelo():
-    """Informa qual modelo está configurado e se ele foi carregado corretamente."""
+    """Informa quais modelos estão configurados e se eles foram carregados corretamente."""
     return {
         "modelo": llm_service.NOME_MODELO,
         "carregado": llm_service.modelo_disponivel(),
         "erro": llm_service.erro_carregamento,
+        "modelo_resumo": resumo_service.NOME_MODELO_RESUMO,
+        "resumo_carregado": resumo_service.modelo_disponivel(),
+        "erro_resumo": resumo_service.erro_carregamento,
     }
 
 
@@ -311,3 +369,62 @@ def obter_contexto_llm():
         "total_noticias": len(titulos),
         "prompt_pronto_para_llm": prompt_preparado,
     }
+
+
+@app.post(
+    "/llm/resumo",
+    summary="Gerar Resumo Inteligente (Clima + Notícias)",
+    tags=["Inteligência Artificial"],
+    response_model=RespostaResumo,
+    responses={
+        404: {"model": RespostaErro, "description": "CSV de notícias não encontrado"},
+        503: {"model": RespostaErro, "description": "Modelo de resumo ou dados de clima indisponíveis"},
+        **ERROS_PADRAO,
+    },
+)
+def gerar_resumo(pedido: PedidoResumo):
+    """
+    **Rota de IA generativa:** junta o clima real (Open-Meteo) com as notícias coletadas,
+    classifica cada notícia com o modelo de sentimento, monta o prompt e pede para o
+    modelo local escrever um resumo com insights e recomendações.
+
+    Focos: **geral**, **alertas** ou **noticias**.
+    """
+    # 503: o modelo de resumo não carregou
+    if not resumo_service.modelo_disponivel():
+        raise HTTPException(
+            status_code=503,
+            detail="O modelo de resumo não está disponível no momento. Consulte /llm/status e reinicie a API.",
+        )
+
+    # 404: não há notícias coletadas
+    df_noticias = classificar_noticias(ler_csv_noticias())
+
+    # 503: sem internet e sem arquivo de clima salvo
+    try:
+        df_clima, _ = clima_service.carregar_clima(pedido.dias_clima)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Não foi possível obter os dados de clima: {e}")
+
+    df_alertas = clima_service.identificar_alertas(df_clima)
+    prompt = resumo_service.montar_prompt(pedido.foco, df_clima, df_alertas, df_noticias)
+
+    # 500: qualquer erro inesperado na geração do texto
+    try:
+        resumo, tempo = resumo_service.gerar_resumo(prompt)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar o resumo com o modelo: {e}")
+
+    resposta = {
+        "foco": pedido.foco,
+        "modelo": resumo_service.NOME_MODELO_RESUMO,
+        "resumo": resumo,
+        "tempo_processamento_seg": tempo,
+        "total_noticias": len(df_noticias),
+        "noticias_por_sentimento": df_noticias["Sentimento"].value_counts().to_dict(),
+        "alertas_clima": len(df_alertas),
+        "alertas_por_cidade": df_alertas["Cidade"].value_counts().to_dict(),
+        "prompt_usado": prompt,
+    }
+    salvar_historico(resposta)
+    return resposta
